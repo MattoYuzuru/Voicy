@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+.venv
+venv
+data
+models
+runtimes
+__pycache__
+**/__pycache__
+.pytest_cache
+.ruff_cache
+tests
+work
+config/profiles.local.json

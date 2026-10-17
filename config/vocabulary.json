@@ -1,0 +1,292 @@
+[
+  {
+    "canonical": "Gradle Wrapper",
+    "aliases": []
+  },
+  {
+    "canonical": "Linux",
+    "aliases": []
+  },
+  {
+    "canonical": "Colima",
+    "aliases": [
+      "колима"
+    ]
+  },
+  {
+    "canonical": "Qwen",
+    "aliases": []
+  },
+  {
+    "canonical": "SQL",
+    "aliases": []
+  },
+  {
+    "canonical": "rollback",
+    "aliases": [
+      "роллбэк"
+    ]
+  },
+  {
+    "canonical": "merge request",
+    "aliases": [
+      "мердж реквест"
+    ]
+  },
+  {
+    "canonical": "JWT",
+    "aliases": []
+  },
+  {
+    "canonical": "SQLite",
+    "aliases": [
+      "эс кью лайт"
+    ]
+  },
+  {
+    "canonical": "React",
+    "aliases": [
+      "реакт"
+    ]
+  },
+  {
+    "canonical": "E2E",
+    "aliases": [
+      "и ту и"
+    ]
+  },
+  {
+    "canonical": "integration test",
+    "aliases": []
+  },
+  {
+    "canonical": "Redis",
+    "aliases": [
+      "редис"
+    ]
+  },
+  {
+    "canonical": "Spring Boot",
+    "aliases": [
+      "спринг бут"
+    ]
+  },
+  {
+    "canonical": "Gradle",
+    "aliases": [
+      "градл"
+    ]
+  },
+  {
+    "canonical": "GitLab",
+    "aliases": [
+      "гитлаб"
+    ]
+  },
+  {
+    "canonical": "Node.js",
+    "aliases": [
+      "нод джей эс"
+    ]
+  },
+  {
+    "canonical": "branch",
+    "aliases": [
+      "бранч"
+    ]
+  },
+  {
+    "canonical": "Kotlin",
+    "aliases": [
+      "котлин"
+    ]
+  },
+  {
+    "canonical": "macOS",
+    "aliases": [
+      "макос"
+    ]
+  },
+  {
+    "canonical": "Python",
+    "aliases": [
+      "пайтон",
+      "питон"
+    ]
+  },
+  {
+    "canonical": "Fedora",
+    "aliases": [
+      "федора"
+    ]
+  },
+  {
+    "canonical": "unit test",
+    "aliases": [
+      "юнит тест"
+    ]
+  },
+  {
+    "canonical": "PostgreSQL",
+    "aliases": [
+      "постгрес",
+      "постгрескьюэль"
+    ]
+  },
+  {
+    "canonical": "Whisper",
+    "aliases": [
+      "виспер",
+      "виспр"
+    ]
+  },
+  {
+    "canonical": "ChatGPT",
+    "aliases": [
+      "чат джипити"
+    ]
+  },
+  {
+    "canonical": "Git",
+    "aliases": []
+  },
+  {
+    "canonical": "OAuth",
+    "aliases": [
+      "оаус"
+    ]
+  },
+  {
+    "canonical": "MCP",
+    "aliases": [
+      "эм си пи"
+    ]
+  },
+  {
+    "canonical": "worktree",
+    "aliases": [
+      "ворктри",
+      "ворк три"
+    ]
+  },
+  {
+    "canonical": "Telegram",
+    "aliases": [
+      "телеграм"
+    ]
+  },
+  {
+    "canonical": "Java",
+    "aliases": [
+      "джава"
+    ]
+  },
+  {
+    "canonical": "LLM",
+    "aliases": [
+      "эл эл эм"
+    ]
+  },
+  {
+    "canonical": "VPN",
+    "aliases": [
+      "впн",
+      "ви пи эн"
+    ]
+  },
+  {
+    "canonical": "Docker",
+    "aliases": [
+      "докер"
+    ]
+  },
+  {
+    "canonical": "merge",
+    "aliases": [
+      "мердж"
+    ]
+  },
+  {
+    "canonical": "VPS",
+    "aliases": [
+      "ви пи эс",
+      "впс"
+    ]
+  },
+  {
+    "canonical": "pipeline",
+    "aliases": [
+      "пайплайн"
+    ]
+  },
+  {
+    "canonical": "commit",
+    "aliases": [
+      "коммит",
+      "комит"
+    ]
+  },
+  {
+    "canonical": "CI/CD",
+    "aliases": [
+      "си ай си ди"
+    ]
+  },
+  {
+    "canonical": "Claude Code",
+    "aliases": [
+      "клод код",
+      "клауд код"
+    ]
+  },
+  {
+    "canonical": "pull request",
+    "aliases": [
+      "пул реквест",
+      "пулл реквест"
+    ]
+  },
+  {
+    "canonical": "SSH",
+    "aliases": [
+      "эс эс эйч"
+    ]
+  },
+  {
+    "canonical": "deploy",
+    "aliases": []
+  },
+  {
+    "canonical": "API",
+    "aliases": [
+      "апи",
+      "эй пи ай"
+    ]
+  },
+  {
+    "canonical": "Codex",
+    "aliases": [
+      "кодекс"
+    ]
+  },
+  {
+    "canonical": "backend",
+    "aliases": [
+      "бэкенд",
+      "бекенд"
+    ]
+  },
+  {
+    "canonical": "frontend",
+    "aliases": [
+      "фронтенд",
+      "фронтэнд"
+    ]
+  },
+  {
+    "canonical": "GitHub",
+    "aliases": [
+      "гитхаб"
+    ]
+  }
+]

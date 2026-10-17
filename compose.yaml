@@ -1,0 +1,32 @@
+name: voicey
+services:
+  bot:
+    build:
+      context: .
+      args:
+        WHISPER_NATIVE: ${WHISPER_NATIVE:-OFF}
+    image: voicey:0.2.0
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+      - ./models:/models:ro
+      - ./config:/app/config:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1400m
+    memswap_limit: 2g
+    cpus: 0.8
+    pids_limit: 96
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
