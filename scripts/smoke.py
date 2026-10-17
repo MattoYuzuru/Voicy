@@ -17,6 +17,7 @@ async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["stt", "llm"])
     parser.add_argument("--audio", type=Path)
+    parser.add_argument("--language", choices=["auto", "ru", "en"], default="auto")
     args = parser.parse_args()
     s = Settings(token="unused")
     start = time.monotonic()
@@ -25,7 +26,7 @@ async def main():
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "voice.ogg"
             shutil.copyfile(args.audio, target)
-            text = await transcribe(s, p, target, "Telegram, VPS, Docker, SQLite, API, GitHub Actions", "ru")
+            text = await transcribe(s, p, target, "Telegram, VPS, Docker, SQLite, API, GitHub Actions", args.language)
     else:
         p = Profile("bonsai", "Bonsai", "llm", "local", "/models/Ternary-Bonsai-2-2B-PQ2_0.gguf")
         text = await process_text(
