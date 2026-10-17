@@ -400,7 +400,9 @@ async def main():
                     worker = tasks.create_task(app.worker())
                     try:
                         # Sequential update persistence; inference happens only in worker.
-                        await dp.start_polling(bot, handle_as_tasks=False, allowed_updates=["message", "callback_query"])
+                        await dp.start_polling(
+                            bot, handle_as_tasks=False, allowed_updates=["message", "callback_query"]
+                        )
                     finally:
                         worker.cancel()
             finally:
