@@ -86,7 +86,7 @@ async def test_worker_serializes_stt_and_text_jobs(tmp_path):
     app = App(Settings(token="hidden", data_dir=tmp_path), store, bot)
     active, peak, seen = 0, 0, []
 
-    async def execute(job):
+    async def execute(job, progress=None):
         nonlocal active, peak
         active += 1
         peak = max(active, peak)
@@ -99,7 +99,7 @@ async def test_worker_serializes_stt_and_text_jobs(tmp_path):
     task = asyncio.create_task(app.worker())
     try:
         async with asyncio.timeout(2):
-            while bot.send_message.await_count < 2:
+            while store.db.execute("SELECT count(*) FROM jobs WHERE status='done'").fetchone()[0] < 2:
                 await asyncio.sleep(0.01)
     finally:
         task.cancel()

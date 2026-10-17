@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from aiogram import BaseMiddleware, Bot, Dispatcher, F
-from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter, TelegramServerError
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter, TelegramServerError
 from aiogram.filters import Command
 from aiogram.types import (
     BufferedInputFile,
@@ -26,6 +26,7 @@ from voicey.config import Settings, load_settings
 from voicey.db import Store
 from voicey.formatting import chunks, utf16_len
 from voicey.inference import TASKS, InferenceError, process_text, transcribe
+from voicey.status import JobStatus
 
 log = logging.getLogger("voicey")
 HELP = (
@@ -51,11 +52,33 @@ class Access(BaseMiddleware):
         user = event.from_user
         message = event.message if isinstance(event, CallbackQuery) else event
         if not user or (not self.s.public and user.id not in self.s.allowed_ids):
+            log.warning(
+                "access_denied user_id=%s chat_type=%s",
+                user.id if user else None,
+                message.chat.type if message else None,
+            )
             if isinstance(event, CallbackQuery):
                 await event.answer("Нет доступа.")
+            elif user and message.chat.type == "private":
+                await data["bot"].send_message(
+                    message.chat.id,
+                    f"Нет доступа: этот бот личный. Твой Telegram ID: {user.id}. "
+                    "Передай этот ID владельцу для настройки доступа.",
+                )
             return
         if not message or message.chat.type != "private":
+            log.info("unsupported_chat user_id=%s chat_type=%s", user.id, message.chat.type if message else None)
+            if message and not isinstance(event, CallbackQuery):
+                await data["bot"].send_message(
+                    message.chat.id, "Открой личный чат с ботом: группы пока не поддерживаются."
+                )
             return
+        log.info(
+            "received user_id=%s event=%s content=%s",
+            user.id,
+            type(event).__name__,
+            message.content_type if isinstance(message, Message) else "callback",
+        )
         return await handler(event, data)
 
 
@@ -71,17 +94,28 @@ def actions(jid: int):
     )
 
 
-async def send_text(bot: Bot, chat: int, reply: int, text: str, markup=None):
+async def send_text(bot: Bot, chat: int, reply: int, text: str, markup=None, replace_message_id=None):
     parts = chunks(text)
     for i, part in enumerate(parts):
         for attempt in range(3):
             try:
+                kwargs = dict(
+                    entities=[MessageEntity(type="blockquote", offset=0, length=utf16_len(part))],
+                    reply_markup=markup if i == len(parts) - 1 else None,
+                )
+                if i == 0 and replace_message_id:
+                    try:
+                        await bot.edit_message_text(part, chat_id=chat, message_id=replace_message_id, **kwargs)
+                        break
+                    except TelegramBadRequest as e:
+                        if "message is not modified" in str(e).lower():
+                            break
+                        replace_message_id = None
                 await bot.send_message(
                     chat,
                     part,
-                    entities=[MessageEntity(type="blockquote", offset=0, length=utf16_len(part))],
                     reply_parameters=ReplyParameters(message_id=reply, allow_sending_without_reply=True),
-                    reply_markup=markup if i == len(parts) - 1 else None,
+                    **kwargs,
                 )
                 break
             except TelegramRetryAfter as e:
@@ -98,6 +132,18 @@ class App:
     def __init__(self, s: Settings, store: Store, bot: Bot):
         self.s, self.store, self.bot = s, store, bot
         self.wake = asyncio.Event()
+        self.admission = asyncio.Lock()
+
+    async def enqueue(self, uid, chat, message, kind, payload):
+        # Persist the immediate reply before a worker can claim this job.
+        async with self.admission:
+            jid = self.store.enqueue(uid, chat, message, kind, payload, self.s.max_pending)
+            if jid:
+                report = JobStatus(self.bot, self.store, self.store.job(jid, uid))
+                report.update("queued" if kind == "stt" else "queued_text")
+                await report.refresh()
+        self.wake.set()
+        return jid
 
     def selected(self, uid: int, kind: str):
         pid = self.store.get(uid, kind)
@@ -142,7 +188,7 @@ class App:
             await message.reply("Распознавание не настроено. Проверь /settings.")
             return
         try:
-            jid = self.store.enqueue(
+            jid = await self.enqueue(
                 uid,
                 message.chat.id,
                 message.message_id,
@@ -153,14 +199,12 @@ class App:
                     "language": self.store.get(uid, "language", "auto"),
                     "hint": self.store.hint(uid),
                 },
-                self.s.max_pending,
             )
         except ValueError as e:
             await message.reply(str(e))
             return
-        self.wake.set()
         if jid:
-            await message.reply("Принято, распознаю. На CPU это может занять несколько минут.")
+            log.info("job=%s queued kind=stt audio_seconds=%s", jid, v.duration)
 
     async def callback(self, cb: CallbackQuery):
         parts = (cb.data or "").split(":")
@@ -201,13 +245,12 @@ class App:
         fingerprint = hashlib.sha256((p.id + task).encode()).hexdigest()[:12]
         kind = f"{action}:{fingerprint}"
         try:
-            jid = self.store.enqueue(
+            jid = await self.enqueue(
                 uid,
                 source["chat_id"],
                 source["message_id"],
                 kind,
                 {"source_id": source["id"], "profile": p.id, "task": task},
-                self.s.max_pending,
             )
         except ValueError as e:
             await cb.answer(str(e))
@@ -300,7 +343,8 @@ class App:
             if time.monotonic() - last_cleanup > 3600:
                 self.store.cleanup(self.s.retention_days)
                 last_cleanup = time.monotonic()
-            job = self.store.claim()
+            async with self.admission:
+                job = self.store.claim()
             if not job:
                 self.wake.clear()
                 try:
@@ -309,9 +353,13 @@ class App:
                     pass
                 continue
             started = time.monotonic()
+            report = JobStatus(self.bot, self.store, job)
+            report.start()
+            log.info("job=%s started kind=%s", job["id"], job["kind"])
             try:
                 async with asyncio.timeout(self.s.timeout + 180):
-                    result = await self.execute(job)
+                    result = await self.execute(job, report.update)
+                await report.stop()
                 # Persist before Telegram send. Delivery errors do not rerun expensive inference.
                 self.store.finish(job["id"], result)
                 await send_text(
@@ -320,11 +368,13 @@ class App:
                     job["message_id"],
                     result,
                     actions(job["id"]) if job["kind"] == "stt" and result else None,
+                    replace_message_id=report.message_id,
                 )
                 log.info("job=%s completed seconds=%.1f", job["id"], time.monotonic() - started)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                await report.stop()
                 # Exception strings can contain request URLs/tokens or user content.
                 log.warning("job=%s failed type=%s", job["id"], type(e).__name__)
                 if self.store.job(job["id"], job["user_id"])["status"] != "done":
@@ -335,15 +385,13 @@ class App:
                     else "Ошибка обработки. Проверь настройки или попробуй позже."
                 )
                 with contextlib.suppress(Exception):
-                    await self.bot.send_message(
-                        job["chat_id"],
-                        safe,
-                        reply_parameters=ReplyParameters(
-                            message_id=job["message_id"], allow_sending_without_reply=True
-                        ),
+                    await send_text(
+                        self.bot, job["chat_id"], job["message_id"], safe, replace_message_id=report.message_id
                     )
+            finally:
+                await report.stop()
 
-    async def execute(self, job):
+    async def execute(self, job, progress=None):
         payload = json.loads(job["payload"])
         p = self.s.profiles[payload["profile"]]
         if not p.ready():
@@ -352,18 +400,20 @@ class App:
             source = self.store.job(payload["source_id"], job["user_id"])
             if not source or not source["result"]:
                 raise InferenceError("Исходная расшифровка больше не хранится.")
-            return await process_text(self.s, p, source["result"], payload["task"])
+            return await process_text(self.s, p, source["result"], payload["task"], progress)
         work = self.s.data_dir / "jobs"
         work.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=work) as directory:
             audio = Path(directory) / "voice.ogg"
+            if progress:
+                progress("download")
             f = await self.bot.get_file(payload["file_id"])
             if (f.file_size or 0) > self.s.max_bytes:
                 raise InferenceError("Файл превышает лимит 19 МБ.")
             await self.bot.download_file(f.file_path, destination=audio)
             if audio.stat().st_size > self.s.max_bytes:
                 raise InferenceError("Файл превышает лимит 19 МБ.")
-            return await transcribe(self.s, p, audio, payload["hint"], payload["language"])
+            return await transcribe(self.s, p, audio, payload["hint"], payload["language"], progress)
 
 
 async def main():
@@ -384,17 +434,8 @@ async def main():
             log.info("starting @%s", me.username)
             if (await bot.get_webhook_info()).url:
                 raise RuntimeError("Webhook configured: explicitly remove it before polling")
-            app, dp = App(s, store, bot), Dispatcher()
-            dp.message.outer_middleware(Access(s))
-            dp.callback_query.outer_middleware(Access(s))
-            dp.message.register(
-                app.commands,
-                Command("start", "help", "settings", "last", "add", "remove", "dict", "export", "seed", "prompt"),
-            )
-            dp.message.register(app.voice, F.voice)
-            dp.message.register(app.document, F.document)
-            dp.message.register(app.commands)
-            dp.callback_query.register(app.callback)
+            app = App(s, store, bot)
+            dp = build_dispatcher(app)
             try:
                 async with asyncio.TaskGroup() as tasks:
                     worker = tasks.create_task(app.worker())
@@ -409,7 +450,22 @@ async def main():
                 store.close()
 
 
+def build_dispatcher(app):
+    dp = Dispatcher()
+    dp.message.outer_middleware(Access(app.s))
+    dp.callback_query.outer_middleware(Access(app.s))
+    dp.message.register(
+        app.commands, Command("start", "help", "settings", "last", "add", "remove", "dict", "export", "seed", "prompt")
+    )
+    dp.message.register(app.voice, F.voice)
+    dp.message.register(app.document, F.document)
+    dp.message.register(app.commands)
+    dp.callback_query.register(app.callback)
+    return dp
+
+
 def run():
     logging.basicConfig(level=logging.WARNING)
     log.setLevel(logging.INFO)
+    logging.getLogger("aiogram.dispatcher").setLevel(logging.INFO)
     asyncio.run(main())

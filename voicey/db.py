@@ -110,6 +110,13 @@ class Store:
                 "UPDATE jobs SET status=?,result=?,updated=? WHERE id=?", (status, result, time.time(), jid)
             )
 
+    def patch_payload(self, jid: int, **changes):
+        with self.db:
+            row = self.db.execute("SELECT payload FROM jobs WHERE id=?", (jid,)).fetchone()
+            payload = json.loads(row[0])
+            payload.update(changes)
+            self.db.execute("UPDATE jobs SET payload=? WHERE id=?", (json.dumps(payload), jid))
+
     def job(self, jid: int, uid: int) -> dict | None:
         r = self.db.execute("SELECT * FROM jobs WHERE id=? AND user_id=?", (jid, uid)).fetchone()
         return dict(r) if r else None

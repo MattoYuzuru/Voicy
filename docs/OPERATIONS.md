@@ -44,3 +44,16 @@ Swap rollback may take longer under pressure and is separate from application ro
 `docker stats`, process RSS and cgroup memory peak differ (file-cache accounting).
 Record what was actually measured. RTF = processing seconds / audio seconds.
 Weight size and author GPU speed are not evidence of VPS runtime memory or latency.
+
+Inbound diagnostics log user ID, event/content type and access denial, never message
+text or audio. If a private user sees no acknowledgement, first check access_denied
+and compare the caller's reported Telegram ID with ALLOWED_USER_IDS; correct it only
+after owner confirmation. /start denied replies show the caller's own ID. Group
+messages from allowed users explain that only private chats are supported.
+
+Each admitted job saves its status reply ID in the job payload. Worker stages and
+native Whisper progress update that reply every five seconds, including elapsed
+time. Percentages reflect processed audio chunks, may jump or pause during model
+loading/encoding, and are capped below 100 until final delivery. API and editor
+jobs show stages without invented percentages. The status reply becomes the first
+transcript/result chunk; any remaining chunks still reply to the original voice.

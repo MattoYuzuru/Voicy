@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 import signal
 import socket
 from pathlib import Path
@@ -34,16 +35,22 @@ async def stop_process(proc):
             await proc.wait()
 
 
-async def command(*args: str, timeout: int = 900):
+async def command(*args: str, timeout: int = 900, on_progress=None):
     proc = await asyncio.create_subprocess_exec(
         *args,
         env=child_env(),
         start_new_session=True,
         stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE if on_progress else asyncio.subprocess.DEVNULL,
     )
     try:
-        await asyncio.wait_for(proc.wait(), timeout)
+        async with asyncio.timeout(timeout):
+            if on_progress:
+                async for line in proc.stderr:
+                    match = re.search(rb"whisper_print_progress_callback: progress =\s*(\d+)%", line)
+                    if match:
+                        on_progress(int(match[1]))
+            await proc.wait()
         if proc.returncode:
             raise InferenceError("Локальная модель завершилась с ошибкой.")
     finally:
@@ -72,8 +79,10 @@ def auth(p: Profile):
     return {"Authorization": f"Bearer {key}"}
 
 
-async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: str) -> str:
+async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: str, progress=None) -> str:
     if p.backend == "api":
+        if progress:
+            progress("api_stt")
         # Standard multipart /audio/transcriptions, not OpenRouter chat-audio.
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=s.timeout)) as http:
             with audio.open("rb") as f:
@@ -93,6 +102,8 @@ async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: 
             raise InferenceError("STT API не вернул текст.")
         return data["text"].strip()
     wav = audio.with_suffix(".wav")
+    if progress:
+        progress("prepare")
     await command(
         "ffmpeg",
         "-nostdin",
@@ -113,6 +124,8 @@ async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: 
         timeout=60,
     )
     out = audio.parent / "transcript"
+    if progress:
+        progress("transcribe", 0)
     await command(
         s.whisper_bin,
         "-m",
@@ -134,7 +147,9 @@ async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: 
         "--prompt",
         hint,
         "--carry-initial-prompt",
+        "--print-progress",
         timeout=s.timeout,
+        on_progress=(lambda value: progress("transcribe", value)) if progress else None,
     )
     data = json.loads(out.with_suffix(".json").read_text())
     return "".join(seg["text"] for seg in data["transcription"]).strip()
@@ -186,18 +201,22 @@ async def chat(http, url: str, p: Profile, text: str, task: str, local: bool = F
         raise InferenceError("Провайдер не вернул текст.") from e
 
 
-async def process_text(s: Settings, p: Profile, text: str, task: str) -> str:
+async def process_text(s: Settings, p: Profile, text: str, task: str, progress=None) -> str:
     if p.backend == "local" and len(text.encode()) > 7500:
         raise InferenceError("Для локальной обработки текст слишком длинный (лимит 7500 байт). Выбери API.")
     if len(text.encode()) > 100_000:
         raise InferenceError("Текст слишком длинный для обработки (лимит 100 КБ).")
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=s.timeout)) as http:
         if p.backend == "api":
+            if progress:
+                progress("edit")
             return await chat(http, p.base_url.rstrip("/") + "/chat/completions", p, text, task)
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
         url = f"http://127.0.0.1:{port}"
+        if progress:
+            progress("load_llm")
         proc = await asyncio.create_subprocess_exec(
             s.llama_bin,
             "-m",
@@ -239,6 +258,8 @@ async def process_text(s: Settings, p: Profile, text: str, task: str) -> str:
                     except (aiohttp.ClientError, TimeoutError):
                         pass
                     await asyncio.sleep(0.3)
+            if progress:
+                progress("edit")
             return await chat(http, url + "/v1/chat/completions", p, text, task, local=True)
         finally:
             await stop_process(proc)

@@ -97,8 +97,8 @@ async def test_access_rejects_unknown_and_groups():
             message_id=1, date=0, chat=Chat(id=10, type=kind), from_user=User(id=uid, is_bot=False, first_name="User")
         )
 
-    await middleware(handler, msg(2, "private"), {})
-    await middleware(handler, msg(1, "group"), {})
+    await middleware(handler, msg(2, "private"), {"bot": AsyncMock()})
+    await middleware(handler, msg(1, "group"), {"bot": AsyncMock()})
     handler.assert_not_called()
     await middleware(handler, msg(1, "private"), {})
     handler.assert_awaited_once()
