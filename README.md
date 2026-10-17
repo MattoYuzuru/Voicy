@@ -54,7 +54,7 @@ API-only режим не требует скачивания моделей.
 На 1 vCPU Whisper Turbo может обрабатывать запись несколько минут: это не гарантия
 real-time. Размер весов не равен пиковому RAM. Измеряй скорость на своих записях.
 
-[Архитектура](docs/ARCHITECTURE.md) · [Эксплуатация и откат](docs/OPERATIONS.md)
+[Архитектура](docs/ARCHITECTURE.md) · [Эксплуатация и откат](docs/OPERATIONS.md) · [Замеры CPU](docs/BENCHMARKS.md)
 
 ## Проверки
 
