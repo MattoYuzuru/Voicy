@@ -3,9 +3,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends git cmake g++ c
     && rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends make \
     && rm -rf /var/lib/apt/lists/*
+ARG WHISPER_NATIVE=OFF
 RUN git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp /src \
     && test "$(git -C /src rev-parse HEAD)" = d1be6fde11ac6e0407606b4e42fe72d34add8037 \
-    && cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF \
+    && cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=${WHISPER_NATIVE} \
        -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF \
        -DBUILD_SHARED_LIBS=OFF \
     && cmake --build /src/build --target whisper-cli -j 1

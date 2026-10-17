@@ -59,3 +59,8 @@ keep concurrency one. For a 2 GB host, 2 GiB disk swap and optional zswap at 10%
 are a starting reserve after checking disk/kernel support. Compression uses CPU,
 not GPU. Do not automatically combine zram/zswap. Host changes are separate from
 app install; preserve existing SSH/VPN and service volumes.
+
+For Whisper CPU tuning, set WHISPER_NATIVE=ON before building on the actual target
+host. This enables the target CPU's SIMD features. The resulting image is tied to
+that CPU feature set: rebuild it on another host or use the default OFF for a more
+portable x86_64 build. Benchmark both if latency matters; do not promise a speedup.

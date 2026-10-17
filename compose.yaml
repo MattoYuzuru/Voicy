@@ -1,7 +1,10 @@
 name: voicey
 services:
   bot:
-    build: .
+    build:
+      context: .
+      args:
+        WHISPER_NATIVE: ${WHISPER_NATIVE:-OFF}
     image: voicey:0.2.0
     restart: unless-stopped
     init: true
