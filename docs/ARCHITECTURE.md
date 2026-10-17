@@ -3,7 +3,7 @@
 ## Goal and acceptance
 
 Replace the synchronous PyTorch/GigaChat MVP. An allowed private Telegram user sends
-a voice note and receives the complete text as a quoted reply to that note. Text
+a voice note, round video, video or audio attachment and receives the complete text as a quoted reply. Text
 actions run on demand. Users select configured local/API models. Vocabulary and
 custom prompts survive restarts. Unknown users/groups cannot trigger inference.
 
@@ -45,7 +45,7 @@ can leave partial delivery. Transient send failures are retried up to three time
 `/last` recovers the last transcript; pressing the same text-action button returns
 the cached result without running the model again.
 
-Audio is temporary and removed in finally; stale job directories are removed at
+Source media, extracted WAV and transcript artifacts are temporary and removed in finally; stale job directories are removed at
 startup. Logs contain job IDs, elapsed time and exception types, no transcripts
 or raw upstream errors. Finished jobs/results expire after seven days; vocabulary
 and settings persist. Telegram/API-provider retention is outside this bot's control.
@@ -56,6 +56,17 @@ HTTPS only, TLS verification on, redirects disabled. Missing API keys hide profi
 Configured does not mean healthy: upstream errors do not silently switch providers.
 STT uses multipart `/audio/transcriptions`; LLM uses `/chat/completions`. OpenRouter
 is a text provider here. Each external provider needs a separate live smoke test.
+
+All STT inputs pass through bounded ffmpeg extraction: first audio stream only,
+video/subtitles/data discarded, mono 16 kHz PCM WAV. Both backends use the WAV,
+so API providers receive no video frames. Decode stops at the duration limit plus
+one second to detect overlong documents without silent truncation. Metadata size
+and duration are checked before admission, downloaded size and decoded duration
+again before inference. Missing audio, corrupt files and decoding timeouts return
+safe errors. User filenames never become local paths. ffmpeg input formats and
+protocols are allowlisted; playlists/network protocols are excluded.
+
+Telegram fields: [Bot API](https://core.telegram.org/bots/api#message).
 
 ## Model choice, 2026-10-17
 

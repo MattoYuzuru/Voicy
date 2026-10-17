@@ -57,3 +57,18 @@ time. Percentages reflect processed audio chunks, may jump or pause during model
 loading/encoding, and are capped below 100 until final delivery. API and editor
 jobs show stages without invented percentages. The status reply becomes the first
 transcript/result chunk; any remaining chunks still reply to the original voice.
+
+## Media smoke without a user
+
+Use `scripts/smoke_media.py --audio /fixtures/speech.ogg` inside the built image
+with `PYTHONPATH=/app`, `/models` read-only and the script mounted under `/checks`.
+Supply a synthetic speech fixture, not a private user recording. It creates H.264/
+AAC MP4 and MP3, feeds actual Dispatcher handlers using a fake Telegram transport,
+runs real ffmpeg and Whisper sequentially, and checks status replacement, numeric
+progress, quoted reply/buttons and temporary-file cleanup. Prints only metadata.
+No bot token or external API is used. This does not emulate a real Telegram client;
+existing live bot checks cover Telegram delivery. Never run this alongside active
+production inference; drain and stop `bot` first, retain its image/DB, and restart
+one poller after checking the candidate. Use the same CPU/RAM limits as production.
+
+User access: [ACCESS.md](ACCESS.md). Project instructions: [../AGENTS.md](../AGENTS.md).

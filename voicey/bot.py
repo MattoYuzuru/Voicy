@@ -30,9 +30,9 @@ from voicey.status import JobStatus
 
 log = logging.getLogger("voicey")
 HELP = (
-    "Пришли голосовое — отвечу полной расшифровкой. Под ней: краткое содержание, "
+    "Пришли голосовое, кружочек, видео или аудиофайл — отвечу полной расшифровкой. Под ней: краткое содержание, "
     "чистый текст, структура и свой промпт. Обработка текста меняет формулировки; оригинал остаётся выше.\n\n"
-    "/settings — модели и язык (RU/EN/авто)\n"
+    "/settings — модели и язык (RU/EN/авто); /id — твой Telegram user ID\n"
     "/last — повторить последнюю расшифровку\n"
     "/add GitHub | гитхаб — добавить термин\n"
     "/remove GitHub — удалить термин\n"
@@ -42,6 +42,10 @@ HELP = (
     "Аудио удаляется после обработки; расшифровки для кнопок хранятся 7 дней. "
     "При выборе API аудио или текст отправляется этому провайдеру."
 )
+MEDIA_SUFFIXES = {
+    ".aac", ".aiff", ".amr", ".flac", ".m4a", ".m4b", ".mkv", ".mov", ".mp3", ".mp4",
+    ".oga", ".ogg", ".opus", ".wav", ".webm", ".wma", ".3gp",
+}
 
 
 class Access(BaseMiddleware):
@@ -177,9 +181,9 @@ class App:
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
         )
 
-    async def voice(self, message: Message):
-        v = message.voice
-        if v.duration > self.s.max_seconds or (v.file_size or 0) > self.s.max_bytes:
+    async def media(self, message: Message):
+        v = message.voice or message.video_note or message.audio or message.video or message.document
+        if (getattr(v, "duration", 0) or 0) > self.s.max_seconds or (v.file_size or 0) > self.s.max_bytes:
             await message.reply(f"Лимит: {self.s.max_seconds // 60} минут и 19 МБ.")
             return
         uid = message.from_user.id
@@ -204,7 +208,7 @@ class App:
             await message.reply(str(e))
             return
         if jid:
-            log.info("job=%s queued kind=stt audio_seconds=%s", jid, v.duration)
+            log.info("job=%s queued kind=stt media=%s", jid, message.content_type)
 
     async def callback(self, cb: CallbackQuery):
         parts = (cb.data or "").split(":")
@@ -276,6 +280,8 @@ class App:
         try:
             if cmd in {"/start", "/help"}:
                 await message.answer(HELP)
+            elif cmd == "/id":
+                await message.answer(f"Твой Telegram user ID: {uid}.")
             elif cmd == "/settings":
                 await self.settings(message)
             elif cmd == "/last":
@@ -315,7 +321,7 @@ class App:
                         self.store.get(uid, "prompt") or "Задай: /prompt инструкцию для редактирования"
                     )
             else:
-                await message.answer("Пришли голосовое или /help.")
+                await message.answer("Пришли голосовое, кружочек, видео или аудиофайл. /help")
         except (ValueError, KeyError, TypeError):
             await message.answer(
                 "Не удалось сохранить. /add термин | варианты; JSON: [{canonical, aliases}]. Лимит 200 терминов."
@@ -323,8 +329,11 @@ class App:
 
     async def document(self, message: Message):
         d = message.document
+        if (d.mime_type or "").startswith(("audio/", "video/")) or Path(d.file_name or "").suffix.lower() in MEDIA_SUFFIXES:
+            await self.media(message)
+            return
         if not (d.file_name or "").lower().endswith(".json") or (d.file_size or 0) > 64000:
-            await message.reply("Для словаря нужен JSON до 64 КБ.")
+            await message.reply("Пришли аудио/видео до 19 МБ или JSON словаря до 64 КБ.")
             return
         try:
             f = await self.bot.get_file(d.file_id)
@@ -404,7 +413,8 @@ class App:
         work = self.s.data_dir / "jobs"
         work.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=work) as directory:
-            audio = Path(directory) / "voice.ogg"
+            # Never use user filenames as paths; ffmpeg probes the actual container.
+            audio = Path(directory) / "input.bin"
             if progress:
                 progress("download")
             f = await self.bot.get_file(payload["file_id"])
@@ -455,9 +465,9 @@ def build_dispatcher(app):
     dp.message.outer_middleware(Access(app.s))
     dp.callback_query.outer_middleware(Access(app.s))
     dp.message.register(
-        app.commands, Command("start", "help", "settings", "last", "add", "remove", "dict", "export", "seed", "prompt")
+        app.commands, Command("start", "help", "id", "settings", "last", "add", "remove", "dict", "export", "seed", "prompt")
     )
-    dp.message.register(app.voice, F.voice)
+    dp.message.register(app.media, F.voice | F.video_note | F.audio | F.video)
     dp.message.register(app.document, F.document)
     dp.message.register(app.commands)
     dp.callback_query.register(app.callback)

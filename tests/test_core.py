@@ -119,7 +119,7 @@ async def test_voice_limits_before_download(store):
     app = App(Settings(token="hidden", max_seconds=10), store, AsyncMock())
     msg = AsyncMock()
     msg.voice = Voice(file_id="id", file_unique_id="u", duration=11)
-    await app.voice(msg)
+    await app.media(msg)
     app.bot.get_file.assert_not_called()
     assert store.claim() is None
 

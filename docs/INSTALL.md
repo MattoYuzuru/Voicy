@@ -19,7 +19,7 @@ unrelated changes. Never request tokens in chat or print request URLs containing
    10001. For rootless Docker resolve UID mapping; do not use world-writable data.
 6. On Linux x86_64, `docker compose build`, then `docker compose up -d`. Inspect
    config without dumping expanded secrets. Adds one container, no published port.
-7. Check logs, `/start`, `/settings`, one voice and each text button. Confirm full
+7. Check logs, `/start`, `/id`, `/settings`, one voice, round video, audio file and each text button. Confirm full
    text/reply target, denied users, child PIDs gone and memory released after jobs.
 8. Record deployed revision/image, checksums, measured memory/latency and rollback.
    Never mark untested API providers or local model paths as verified.
@@ -37,7 +37,7 @@ replace placeholder hosts/model IDs and set PROFILES_FILE=config/profiles.local.
 in `.env`. Each profile needs a unique ID, kind (stt/llm), backend (api), base_url,
 model and key_env. Add the named credential to `.env`, restart the container.
 Remove local profiles for API-only operation; no model downloads then needed.
-Native Python API-only operation does not need runtime binaries or ffmpeg.
+Native Python API-only operation needs ffmpeg to extract audio, but no Whisper/Bonsai binaries.
 
 OpenRouter base_url: https://openrouter.ai/api/v1; key_env: OPENROUTER_API_KEY;
 model: exact provider/model ID from your account. STT uses a separate multipart
@@ -45,6 +45,10 @@ model: exact provider/model ID from your account. STT uses a separate multipart
 optional prompt/language. Check provider compatibility. LLM uses messages/model/
 temperature/max_tokens at `{base_url}/chat/completions`. API compatibility is not
 universal; test the exact provider before relying on it.
+
+STT inputs are normalized to mono 16 kHz PCM WAV before either backend. Video
+frames never go to the STT API. Keep ffmpeg installed for API-only deployments too.
+Actual decoded duration is checked; missing document duration is not trusted.
 
 No paid call happens on startup. Users choose configured profiles in `/settings`.
 Keys belong to the instance operator and stay on the server. Telegram users cannot

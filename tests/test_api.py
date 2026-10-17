@@ -48,6 +48,8 @@ async def test_stt_multipart_protocol(tmp_path, monkeypatch):
     monkeypatch.setenv("TEST_API_KEY", "test-only")
     audio = tmp_path / "voice.ogg"
     audio.write_bytes(b"fake-audio")
+    prepare = AsyncMock(return_value=audio)
+    monkeypatch.setattr("voicey.inference.prepare_audio", prepare)
 
     async def handle(request):
         reader = await request.multipart()
@@ -63,6 +65,7 @@ async def test_stt_multipart_protocol(tmp_path, monkeypatch):
     async with server(handle, "/audio/transcriptions") as url:
         p = Profile("api", "API", "stt", "api", "whisper", url, "TEST_API_KEY")
         assert await transcribe(Settings(token="hidden"), p, audio, "GitHub", "ru") == "текст GitHub"
+    prepare.assert_awaited_once()
 
 
 async def test_api_error_does_not_echo_upstream_body(monkeypatch):

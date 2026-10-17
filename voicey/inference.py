@@ -5,6 +5,7 @@ import os
 import re
 import signal
 import socket
+import wave
 from pathlib import Path
 
 import aiohttp
@@ -79,15 +80,45 @@ def auth(p: Profile):
     return {"Authorization": f"Bearer {key}"}
 
 
+async def prepare_audio(s: Settings, audio: Path, progress=None) -> Path:
+    wav = audio.with_name("prepared.wav")
+    if progress:
+        progress("prepare")
+    try:
+        await command(
+            "ffmpeg", "-nostdin", "-v", "error", "-y",
+            "-protocol_whitelist", "file,pipe",
+            "-format_whitelist", "aac,aiff,amr,asf,flac,matroska,webm,mov,mp3,ogg,wav",
+            "-i", str(audio), "-map", "0:a:0", "-vn", "-sn", "-dn",
+            "-t", str(s.max_seconds + 1), "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
+            str(wav), timeout=60,
+        )
+    except FileNotFoundError as e:
+        raise InferenceError("На сервере не установлен ffmpeg для извлечения звука.") from e
+    except (InferenceError, TimeoutError) as e:
+        raise InferenceError("Не удалось извлечь звук. Проверь файл: он повреждён, не поддерживается или не содержит аудио.") from e
+    try:
+        with wave.open(str(wav), "rb") as f:
+            seconds = f.getnframes() / f.getframerate()
+    except (wave.Error, EOFError) as e:
+        raise InferenceError("Не удалось прочитать звуковую дорожку.") from e
+    if seconds <= 0:
+        raise InferenceError("Файл не содержит звука.")
+    if seconds > s.max_seconds:
+        raise InferenceError(f"Аудио длиннее лимита {s.max_seconds // 60} минут. Раздели файл на части.")
+    return wav
+
+
 async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: str, progress=None) -> str:
+    # Both backends receive only audio, including when Telegram supplied a video.
+    wav = await prepare_audio(s, audio, progress)
     if p.backend == "api":
         if progress:
             progress("api_stt")
-        # Standard multipart /audio/transcriptions, not OpenRouter chat-audio.
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=s.timeout)) as http:
-            with audio.open("rb") as f:
+            with wav.open("rb") as f:
                 form = aiohttp.FormData()
-                form.add_field("file", f, filename="voice.ogg", content_type="audio/ogg")
+                form.add_field("file", f, filename="audio.wav", content_type="audio/wav")
                 form.add_field("model", p.model)
                 form.add_field("response_format", "json")
                 if hint:
@@ -101,28 +132,6 @@ async def transcribe(s: Settings, p: Profile, audio: Path, hint: str, language: 
         if not isinstance(data.get("text"), str):
             raise InferenceError("STT API не вернул текст.")
         return data["text"].strip()
-    wav = audio.with_suffix(".wav")
-    if progress:
-        progress("prepare")
-    await command(
-        "ffmpeg",
-        "-nostdin",
-        "-v",
-        "error",
-        "-y",
-        "-i",
-        str(audio),
-        "-t",
-        str(s.max_seconds),
-        "-ar",
-        "16000",
-        "-ac",
-        "1",
-        "-c:a",
-        "pcm_s16le",
-        str(wav),
-        timeout=60,
-    )
     out = audio.parent / "transcript"
     if progress:
         progress("transcribe", 0)
