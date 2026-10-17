@@ -100,9 +100,9 @@ class App:
         self.wake = asyncio.Event()
 
     def selected(self, uid: int, kind: str):
-        available = self.s.available(kind)
         pid = self.store.get(uid, kind)
-        return next((p for p in available if p.id == pid), available[0] if available else None)
+        p = self.s.profiles.get(pid) if pid else next((p for p in self.s.profiles.values() if p.kind == kind), None)
+        return p if p and p.kind == kind and p.ready() else None
 
     async def settings(self, message: Message):
         uid = message.from_user.id

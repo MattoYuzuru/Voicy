@@ -10,9 +10,9 @@ unrelated changes. Never request tokens in chat or print request URLs containing
 2. If `.env` is absent, copy `.env.example`; otherwise preserve it. Supply BOT_TOKEN
    (legacy API_TOKEN accepted) and numeric ALLOWED_USER_IDS, comma-separated.
    PUBLIC_BOT=true is an explicit public opt-in. Protect `.env` with mode 600.
-3. Set profiles as below. Defaults are first available profiles; per-user selections
-   persist in SQLite. Unavailable selections use the first configured profile of
-   that kind. `/settings` shows the current choice.
+3. Set profiles as below. Defaults are the first listed profiles of each kind; per-user selections
+   persist in SQLite. If a selected/default profile is unavailable, select another
+   in `/settings`. There is no automatic switch from local processing to an API.
 4. Run README checks. For local models run `python3 scripts/download_models.py`;
    downloads are commit-pinned and SHA256-verified, existing matching files reused.
 5. `sudo python3 scripts/prepare_data.py`. Models must be readable by UID

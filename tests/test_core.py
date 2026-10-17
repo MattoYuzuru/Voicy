@@ -223,3 +223,15 @@ async def test_repeat_text_button_returns_cache_without_inference(store, tmp_pat
     await app.callback(cb)
     assert store.claim() is None
     assert app.bot.send_message.call_args.args == (10, "cached summary")
+
+
+def test_unavailable_local_profile_never_silently_switches_to_api(store, monkeypatch):
+    monkeypatch.setenv("TEST_KEY", "test-only")
+    local = Profile("local", "Local", "stt", "local", "/missing/model.bin")
+    api = Profile("api", "API", "stt", "api", "model", "https://example.com", "TEST_KEY")
+    app = App(Settings(token="hidden", profiles={local.id: local, api.id: api}), store, AsyncMock())
+    assert app.selected(1, "stt") is None
+    store.set(1, "stt", "local")
+    assert app.selected(1, "stt") is None
+    store.set(1, "stt", "api")
+    assert app.selected(1, "stt") == api
