@@ -21,7 +21,7 @@
 cp .env.example .env  # только если своего .env ещё нет
 # Заполни токен и Telegram user ID локально; не публикуй их.
 python3 scripts/download_models.py
-sudo install -d -o 10001 -g 10001 -m 700 data
+sudo python3 scripts/prepare_data.py
 docker compose build
 docker compose up -d
 ```

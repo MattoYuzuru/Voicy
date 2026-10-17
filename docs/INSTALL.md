@@ -15,7 +15,7 @@ unrelated changes. Never request tokens in chat or print request URLs containing
    that kind. `/settings` shows the current choice.
 4. Run README checks. For local models run `python3 scripts/download_models.py`;
    downloads are commit-pinned and SHA256-verified, existing matching files reused.
-5. `sudo install -d -o 10001 -g 10001 -m 700 data`. Models must be readable by UID
+5. `sudo python3 scripts/prepare_data.py`. Models must be readable by UID
    10001. For rootless Docker resolve UID mapping; do not use world-writable data.
 6. On Linux x86_64, `docker compose build`, then `docker compose up -d`. Inspect
    config without dumping expanded secrets. Adds one container, no published port.
