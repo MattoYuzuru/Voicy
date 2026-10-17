@@ -1,103 +1,70 @@
-# Telegram Bot: Voice Message Summarizer
+# Voicey
 
-## Overview
+Личный Telegram-бот: голосовое → полная расшифровка ответом на исходное сообщение,
+в блоке цитаты. Кнопки: **Кратко**, **Чистый текст**, **Структура**, **Свой промпт**.
+Исходный текст остаётся отдельным сообщением.
 
-This Telegram bot uses AI (powered by Sber GigaChat) to process voice messages and provide concise summaries of the main
-ideas. You can:
+- STT: Whisper Large v3 Turbo Q5_0 через whisper.cpp, RU/EN/авто.
+- Редактор: свежий Ternary Bonsai 2 2B PQ2_0 через PrismML llama.cpp, thinking выключен.
+- API-альтернатива: STT `/audio/transcriptions`, LLM `/chat/completions`, в том числе
+  OpenRouter. Выбор настроенных моделей — `/settings`.
+- Модели запускаются последовательно и выгружаются после задания.
+- Один Python-процесс, один worker и файл SQLite. Без PyTorch/CUDA, Redis и внешней БД.
 
-Chat with the bot directly by sending it a voice message.
+## Установка
 
-Add the bot to group chats where it can summarize voice messages for everyone :)
+[Инструкция для человека или AI-агента](docs/INSTALL.md).
+Токен: BOT_TOKEN или прежний API_TOKEN в `.env`. Доступ: ALLOWED_USER_IDS.
+Общедоступный режим требует явного PUBLIC_BOT=true.
 
-## Features
-
-Voice Message Summarization: Converts voice messages into text and extracts the most important ideas.
-
-Group Chat Integration: Works in group conversations to summarize voice messages shared by members.
-
-AI-Powered: Utilizes Sber GigaChat for accurate and contextual understanding.
-
-User-Friendly: Simple and intuitive commands for easy interaction.
-
-## How to Use
-
-* Direct Chat
-
-    * Start a chat with the bot by clicking on its username.
-
-    * Send a voice message to the bot.
-
-    * Receive a text summary of the message.
-
-* Group Chat
-
-    * Add the bot to your group.
-
-    * Share a voice message in the group.
-
-    * The bot will automatically reply with a summary of the voice message.
-
-## Commands
-
-* **/start**: Begin interaction with the bot and learn about its features.
-
-* **/help**: Get detailed instructions on using the bot.
-
-## For Developers
-
-Code structure:
-
-```
-VoiceSummaryBot/
-├── bot/
-│   ├── __init__.py          
-│   ├── config.py            
-│   ├── handlers/
-│   │   ├── __init__.py      
-│   │   ├── start.py         
-│   │   ├── ai_interaction.py
-│   │   ├── fallback.py      
-│   └── keyboards.py         
-├── ai/
-│   ├── __init__.py          
-│   ├── gigachat_client.py   
-│   ├── processing.py        
-│   └── prompts.py           
-├── utils/
-│   ├── __init__.py          
-│   ├── database.py          
-│   ├── logging.py           
-│   └── helpers.py           
-├── requirements.txt         
-├── .env                     
-├── main.py                  
-├── README.md                
-└── LICENSE                  
-
+```sh
+cp .env.example .env  # только если своего .env ещё нет
+# Заполни токен и Telegram user ID локально; не публикуй их.
+python3 scripts/download_models.py
+sudo install -d -o 10001 -g 10001 -m 700 data
+docker compose build
+docker compose up -d
 ```
 
-Clone this repository:
+Docker-сборка рассчитана на Linux x86_64. Для native Mac/ARM поставь свои совместимые
+runtime и ffmpeg, укажи пути моделей и WHISPER_BIN/LLAMA_BIN, затем:
+`uv sync --frozen --no-dev` и `uv run python main.py`.
+API-only режим не требует скачивания моделей.
 
-`git clone https://github.com/MattoYuzuru/VoiceSummaryBot`
+## Использование
 
-Navigate to the project directory:
+Пришли голосовое, затем при желании нажми кнопку под расшифровкой.
+`/settings` — провайдеры и язык; `/prompt инструкция` — свой промпт.
+`/add GitHub | гитхаб`, `/remove GitHub`, `/dict`, `/export`, `/seed` — словарь.
+Для импорта отправь JSON до 64 КБ: `[{"canonical":"GitHub","aliases":["гитхаб"]}]`.
+До 200 терминов; в Whisper передаётся до 25 последних, до 400 символов.
+Словарь — подсказка, не дообучение и не автоматическая замена.
+`/seed` добавляет 49 публичных IT-названий; личные промпты в репозиторий не включены.
 
-`cd VoiceSummaryBot`
+## Ограничения и данные
 
-Install dependencies:
+Только личные чаты. Голосовые до 10 минут / 19 МБ; очередь до 12 заданий.
+Длинный ответ делится без потери текста. Аудио удаляется после обработки,
+расшифровки для кнопок — через 7 дней. Словарь и настройки сохраняются.
+При выборе API аудио/текст передаётся выбранному провайдеру; ключи остаются на сервере.
+Локальный редактор принимает до 7500 байт текста, API — до 100 КБ; ответ до 768 токенов
+с явной пометкой при обрезании. Для длинного текста выбери API.
+Редактор может ошибаться; полная расшифровка остаётся для сверки.
 
-`pip install -r requirements.txt`
+На 1 vCPU Whisper Turbo может обрабатывать запись несколько минут: это не гарантия
+real-time. Размер весов не равен пиковому RAM. Измеряй скорость на своих записях.
 
-Create a .env file and add the following variables:
+[Архитектура](docs/ARCHITECTURE.md) · [Эксплуатация и откат](docs/OPERATIONS.md)
 
+## Проверки
+
+```sh
+uv sync --frozen
+uv run ruff check .
+uv run python -m pytest -q
+actionlint
 ```
-BOT_TOKEN=your-telegram-bot-token
-GIGACHAT_API_KEY=your-gigachat-api-key
-```
 
-Run the bot:
-
-`python main.py`
-
-**Feel free to contribute or provide feedback to make this bot even better!**
-
+GitHub Actions проверяет код/тесты без моделей, токенов и внешних API.
+Зависимости закреплены в uv.lock/requirements.lock; runtime/веса — версиями,
+commit и SHA256 в Dockerfile и scripts/models.json.

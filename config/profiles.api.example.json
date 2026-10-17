@@ -1,0 +1,6 @@
+[
+  {"id":"whisper", "label":"VPS · Whisper Turbo Q5", "kind":"stt", "backend":"local", "model":"/models/ggml-large-v3-turbo-q5_0.bin"},
+  {"id":"bonsai", "label":"VPS · Bonsai 2 2B", "kind":"llm", "backend":"local", "model":"/models/Ternary-Bonsai-2-2B-PQ2_0.gguf"},
+  {"id":"stt-api", "label":"Мой STT API", "kind":"stt", "backend":"api", "model":"YOUR_STT_MODEL", "base_url":"https://YOUR_STT_HOST/v1", "key_env":"STT_API_KEY"},
+  {"id":"openrouter", "label":"Мой OpenRouter", "kind":"llm", "backend":"api", "model":"YOUR_PROVIDER/MODEL", "base_url":"https://openrouter.ai/api/v1", "key_env":"OPENROUTER_API_KEY"}
+]
