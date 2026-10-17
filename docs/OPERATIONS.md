@@ -18,7 +18,8 @@ docker compose up -d --no-deps bot
 
 Never print expanded `docker compose config` or docker inspect environment values.
 Logs contain metadata. Results saved before failed Telegram delivery can be recovered
-locally from jobs; do not dump private text into shared logs.
+with `/last` (transcript) or by clicking the same action again (cached text result).
+An operator can also recover jobs locally; do not dump private text into shared logs.
 
 Back up online using SQLite Connection.backup(), or stop the bot and copy all of
 data/ including WAL/SHM. Protect backups like private messages. Preserve `.env`,

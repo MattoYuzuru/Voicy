@@ -175,3 +175,51 @@ def test_config_legacy_token_and_api_profiles(tmp_path, monkeypatch):
     path.write_text(json.dumps([profile]))
     with pytest.raises(ValueError):
         load_settings()
+
+
+async def test_delivery_retries_without_running_model(monkeypatch):
+    from aiogram.exceptions import TelegramNetworkError
+    from aiogram.methods import SendMessage
+
+    bot = AsyncMock()
+    bot.send_message.side_effect = [
+        TelegramNetworkError(method=SendMessage(chat_id=1, text="x"), message="temporary"),
+        None,
+    ]
+    monkeypatch.setattr("voicey.bot.asyncio.sleep", AsyncMock())
+    await send_text(bot, 1, 42, "saved result")
+    assert bot.send_message.await_count == 2
+
+
+async def test_last_transcript_is_user_scoped_and_replies_to_voice(store):
+    jid = store.enqueue(1, 10, 42, "stt", {})
+    store.finish(jid, "saved transcript")
+    assert store.last_transcript(2) is None
+    bot = AsyncMock()
+    app = App(Settings(token="hidden"), store, bot)
+    message = AsyncMock()
+    message.from_user.id, message.text = 1, "/last"
+    await app.commands(message)
+    assert bot.send_message.call_args.args == (10, "saved transcript")
+    assert bot.send_message.call_args.kwargs["reply_parameters"].message_id == 42
+
+
+async def test_repeat_text_button_returns_cache_without_inference(store, tmp_path):
+    import hashlib
+
+    from voicey.inference import TASKS
+
+    model = tmp_path / "model.gguf"
+    model.touch()
+    p = Profile("bonsai", "Bonsai", "llm", "local", str(model))
+    app = App(Settings(token="hidden", profiles={p.id: p}), store, AsyncMock())
+    source = store.enqueue(1, 10, 42, "stt", {})
+    store.finish(source, "original")
+    fingerprint = hashlib.sha256((p.id + TASKS["summary"]).encode()).hexdigest()[:12]
+    jid = store.enqueue(1, 10, 42, f"summary:{fingerprint}", {})
+    store.finish(jid, "cached summary")
+    cb = AsyncMock()
+    cb.data, cb.from_user.id = f"do:{source}:summary", 1
+    await app.callback(cb)
+    assert store.claim() is None
+    assert app.bot.send_message.call_args.args == (10, "cached summary")

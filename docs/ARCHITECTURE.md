@@ -41,7 +41,9 @@ SQLite jobs: queued → running → done/error. Running jobs requeue after resta
 Bounded global admission, deduplication, retry of failed text actions. Successful
 inference is saved before Telegram delivery; a send failure does not rerun it.
 There is no exactly-once transaction across SQLite and Telegram. A crash mid-reply
-can leave partial delivery; the result remains in the DB for operator recovery.
+can leave partial delivery. Transient send failures are retried up to three times.
+`/last` recovers the last transcript; pressing the same text-action button returns
+the cached result without running the model again.
 
 Audio is temporary and removed in finally; stale job directories are removed at
 startup. Logs contain job IDs, elapsed time and exception types, no transcripts

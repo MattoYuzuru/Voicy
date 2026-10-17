@@ -12,3 +12,4 @@ __pycache__
 .ruff_cache
 tests
 work
+config/profiles.local.json

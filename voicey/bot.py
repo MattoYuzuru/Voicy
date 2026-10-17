@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from aiogram import BaseMiddleware, Bot, Dispatcher, F
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter, TelegramServerError
 from aiogram.filters import Command
 from aiogram.types import (
     BufferedInputFile,
@@ -31,6 +32,7 @@ HELP = (
     "Пришли голосовое — отвечу полной расшифровкой. Под ней: краткое содержание, "
     "чистый текст, структура и свой промпт. Обработка текста меняет формулировки; оригинал остаётся выше.\n\n"
     "/settings — модели и язык (RU/EN/авто)\n"
+    "/last — повторить последнюю расшифровку\n"
     "/add GitHub | гитхаб — добавить термин\n"
     "/remove GitHub — удалить термин\n"
     "/dict — словарь; /export — JSON; /seed — стартовые IT-термины\n"
@@ -72,13 +74,24 @@ def actions(jid: int):
 async def send_text(bot: Bot, chat: int, reply: int, text: str, markup=None):
     parts = chunks(text)
     for i, part in enumerate(parts):
-        await bot.send_message(
-            chat,
-            part,
-            entities=[MessageEntity(type="blockquote", offset=0, length=utf16_len(part))],
-            reply_parameters=ReplyParameters(message_id=reply, allow_sending_without_reply=True),
-            reply_markup=markup if i == len(parts) - 1 else None,
-        )
+        for attempt in range(3):
+            try:
+                await bot.send_message(
+                    chat,
+                    part,
+                    entities=[MessageEntity(type="blockquote", offset=0, length=utf16_len(part))],
+                    reply_parameters=ReplyParameters(message_id=reply, allow_sending_without_reply=True),
+                    reply_markup=markup if i == len(parts) - 1 else None,
+                )
+                break
+            except TelegramRetryAfter as e:
+                if attempt == 2 or e.retry_after > 60:
+                    raise
+                await asyncio.sleep(e.retry_after + 0.1)
+            except (TelegramNetworkError, TelegramServerError):
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(attempt + 1)
 
 
 class App:
@@ -186,12 +199,13 @@ class App:
         import hashlib
 
         fingerprint = hashlib.sha256((p.id + task).encode()).hexdigest()[:12]
+        kind = f"{action}:{fingerprint}"
         try:
             jid = self.store.enqueue(
                 uid,
                 source["chat_id"],
                 source["message_id"],
-                f"{action}:{fingerprint}",
+                kind,
                 {"source_id": source["id"], "profile": p.id, "task": task},
                 self.s.max_pending,
             )
@@ -199,7 +213,12 @@ class App:
             await cb.answer(str(e))
             return
         self.wake.set()
-        await cb.answer("Добавлено в очередь." if jid else "Этот вариант уже обработан или в очереди.")
+        cached = self.store.cached_job(uid, source["chat_id"], source["message_id"], kind) if not jid else None
+        if cached and cached["result"]:
+            await cb.answer("Возвращаю готовый результат.")
+            await send_text(self.bot, source["chat_id"], source["message_id"], cached["result"])
+        else:
+            await cb.answer("Добавлено в очередь." if jid else "Этот вариант уже в очереди.")
 
     async def settings_for_callback(self, cb):
         # Build using the caller's ID, not the bot sender ID on cb.message.
@@ -216,6 +235,14 @@ class App:
                 await message.answer(HELP)
             elif cmd == "/settings":
                 await self.settings(message)
+            elif cmd == "/last":
+                source = self.store.last_transcript(uid)
+                if source:
+                    await send_text(
+                        self.bot, source["chat_id"], source["message_id"], source["result"], actions(source["id"])
+                    )
+                else:
+                    await message.answer("Сохранённых расшифровок пока нет.")
             elif cmd == "/add":
                 canonical, _, aliases = arg.partition("|")
                 self.store.add_terms(uid, [{"canonical": canonical, "aliases": aliases.strip()}])
@@ -361,20 +388,22 @@ async def main():
             dp.message.outer_middleware(Access(s))
             dp.callback_query.outer_middleware(Access(s))
             dp.message.register(
-                app.commands, Command("start", "help", "settings", "add", "remove", "dict", "export", "seed", "prompt")
+                app.commands,
+                Command("start", "help", "settings", "last", "add", "remove", "dict", "export", "seed", "prompt"),
             )
             dp.message.register(app.voice, F.voice)
             dp.message.register(app.document, F.document)
             dp.message.register(app.commands)
             dp.callback_query.register(app.callback)
-            worker = asyncio.create_task(app.worker())
             try:
-                # Sequential update persistence; inference happens only in worker.
-                await dp.start_polling(bot, handle_as_tasks=False, allowed_updates=["message", "callback_query"])
+                async with asyncio.TaskGroup() as tasks:
+                    worker = tasks.create_task(app.worker())
+                    try:
+                        # Sequential update persistence; inference happens only in worker.
+                        await dp.start_polling(bot, handle_as_tasks=False, allowed_updates=["message", "callback_query"])
+                    finally:
+                        worker.cancel()
             finally:
-                worker.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await worker
                 store.close()
 
 

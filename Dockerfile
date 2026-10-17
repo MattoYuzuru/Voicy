@@ -1,6 +1,8 @@
 FROM python:3.13.15-slim-trixie@sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b AS whisper-build
 RUN apt-get update && apt-get install -y --no-install-recommends git cmake g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends make \
+    && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp /src \
     && test "$(git -C /src rev-parse HEAD)" = d1be6fde11ac6e0407606b4e42fe72d34add8037 \
     && cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF \

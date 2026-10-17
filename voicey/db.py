@@ -120,5 +120,19 @@ class Store:
                 "DELETE FROM jobs WHERE status IN ('done','error') AND updated<?", (time.time() - days * 86400,)
             )
 
+    def last_transcript(self, uid: int) -> dict | None:
+        r = self.db.execute(
+            "SELECT * FROM jobs WHERE user_id=? AND kind='stt' AND status='done' AND result IS NOT NULL ORDER BY id DESC LIMIT 1",
+            (uid,),
+        ).fetchone()
+        return dict(r) if r else None
+
+    def cached_job(self, uid: int, chat: int, message: int, kind: str) -> dict | None:
+        r = self.db.execute(
+            "SELECT * FROM jobs WHERE user_id=? AND chat_id=? AND message_id=? AND kind=? AND status='done'",
+            (uid, chat, message, kind),
+        ).fetchone()
+        return dict(r) if r else None
+
     def close(self):
         self.db.close()
