@@ -8,6 +8,8 @@ uses a 1400 MiB ceiling to leave room for the bot. No model process remains afte
 |---|---:|---:|
 | Whisper Turbo Q5, portable CPU build, forced RU | 76.45 | 730.5 |
 | Whisper Turbo Q5, target-native build, forced RU | 68.03 | 730.3 |
+| Whisper Turbo Q5, target-native, automatic RU detection | 136.53 | 730.6 |
+| Whisper Turbo Q5, target-native, automatic EN detection (8.62 s audio) | 125.93 | 730.0 |
 | Bonsai 2 2B PQ2_0, short Russian summary | 12.07 | 1061.2 |
 
 Whisper input: 10.64-second synthetic Russian speech with Telegram, VPS, Docker,
@@ -27,3 +29,7 @@ inside the built CPU image, mounting scripts and models. For actual application
 verification also test RU/EN auto-detection and the Telegram reply/button flow.
 External API providers need separate credentials/live tests; local contract tests
 alone do not establish compatibility with an arbitrary provider.
+
+Automatic language detection was materially slower on this CPU. For primarily
+Russian voice notes, explicitly select Russian in settings; English and auto remain
+available. This setting also preserves English technical terms in Russian speech.
